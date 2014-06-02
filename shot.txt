@@ -1,0 +1,517 @@
+#include "DxLib.h"
+
+#define Windows_WIDTH 1280			//　ウィンドウの横サイズ
+#define Windows_HEIGHT 780			//　ウィンドウの縦サイズ
+#define MAP_SIZE 64					//　マップチップ1つのドットサイズ
+#define MAP_WIDTH 20				//　マップの幅
+#define MAP_HEIGHT 13				//　マップの縦長さ
+#define STATE_LIVE 1				//　オブジェクトが存在
+#define STATE_NONE 0				//　オブジェクトが存在していない
+#define JumpPower 23				//　ジャンプ力
+#define GRAVITY 10					//　重力加速度
+#define ENEMY_SHOT_MIN_TIME	200		//	敵がショットを打つまでの最低間隔
+#define ENEMY_SHOT_MAX_TIME	400		//	敵がショットを打つまでの最大間隔
+
+int index = 0;
+int ScrollX = 0;
+
+int force = 0;
+int PlayerSpeed = 0;
+int GravityForce = 0;
+int isJump;
+int isAttack;
+
+int EnemySpeed = -5;
+int EnemyDir = 1;
+int KEY_Z;
+
+int EnemyShotTime = 0;
+
+
+//　マップデータ
+int MapData[MAP_HEIGHT][MAP_WIDTH] =
+{
+	{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 3, 0, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+	{ 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 1 },
+	{ 1, 0, 2, 0, 0, 4, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+	{ 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+	{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
+	{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+};
+
+
+//　当たりオブジェクト
+struct OBJECT
+{
+	int x, y;
+	int width, height;
+	int color;
+	int state;
+
+};
+
+
+//　当たりオブジェクト一覧
+OBJECT Map;
+OBJECT Player;
+OBJECT Enemy;
+OBJECT Wall[260];
+OBJECT Attack;
+OBJECT EnemyShot;
+
+//	ショットを打つまでの間隔を決める
+void CalcEnemyShotTiming()
+{
+	//	ENEMY_SHOT_MIN_TIMEからENEMY_SHOT_MAX_TIMEまでの間の乱数をつくる
+	EnemyShotTime = GetRand(ENEMY_SHOT_MAX_TIME - ENEMY_SHOT_MIN_TIME) + ENEMY_SHOT_MIN_TIME;
+}
+
+//　1フレで攻撃
+void KEY_Update()
+{
+
+	if (CheckHitKey(KEY_INPUT_Z)){
+		KEY_Z++;
+	}
+	else{
+		KEY_Z = 0;
+	}
+}
+
+//　プレイヤー初期化
+void InitPlayer(int &x, int &y, int state)
+{
+	Player.x = x;
+	Player.y = y;
+
+	Player.width = MAP_SIZE;
+	Player.height = MAP_SIZE;
+	Player.color = GetColor(255, 255, 255);
+	Player.state = state;
+
+	Attack.x = Player.x + MAP_SIZE;
+	Attack.y = Player.y;
+	Attack.width = MAP_SIZE;
+	Attack.height = MAP_SIZE;
+
+	Attack.color = GetColor(0, 0, 255);
+
+}
+
+//　攻撃座標
+void InitAttack(int &x, int &y)
+{
+	Attack.x = x + MAP_SIZE;
+	Attack.y = y;
+
+
+}
+
+//　エネミーの初期化
+void InitEnemy(int &x, int &y, int state)
+{
+	Enemy.x = x;
+	Enemy.y = y;
+
+	Enemy.width = MAP_SIZE;
+	Enemy.height = MAP_SIZE;
+
+	Enemy.state = state;
+	Enemy.color = GetColor(0, 255, 0);
+
+	EnemyShot.x = Enemy.x;
+	EnemyShot.y = Enemy.y;
+	EnemyShot.width = 20;
+	EnemyShot.height = 20;
+	EnemyShot.state = STATE_NONE;
+	EnemyShot.color = GetColor(0, 255, 255);
+
+	CalcEnemyShotTiming();
+}
+
+//　ブロックの初期化(当たりブロック)
+void InitWall(int &x, int &y, int state)
+{
+	Wall[index].x = x;
+	Wall[index].y = y;
+	Wall[index].width = MAP_SIZE;
+	Wall[index].height = MAP_SIZE;
+	Wall[index].state = state;
+	Wall[index].color = GetColor(255, 0, 0);
+	index++;
+}
+
+//　マップの初期化
+void InitMapData()
+{
+
+	//　ブロックを埋め込む
+	for (int y = 0; y < MAP_HEIGHT; y++)
+	{
+		for (int x = 0; x < MAP_WIDTH; x++)
+		{
+			//if (x < 0 || y < 0 ||
+			//	x >= MAP_WIDTH || y >= MAP_HEIGHT)continue;
+
+			if (MapData[y][x] == 1)
+
+			{
+				Map.x = x * MAP_SIZE;
+				Map.y = y * MAP_SIZE;
+
+				InitWall(Map.x, Map.y, STATE_LIVE);
+			}
+			//　プレイヤの埋め込み、攻撃の埋め込み
+			else if (MapData[y][x] == 2)
+			{
+				Map.x = x * MAP_SIZE;
+				Map.y = y * MAP_SIZE;
+
+				InitPlayer(Map.x, Map.y, STATE_LIVE);
+			}
+			//　エネミーの埋め込み
+			else if (MapData[y][x] == 3)
+			{
+				Map.x = x * MAP_SIZE;
+				Map.y = y * MAP_SIZE;
+
+				InitEnemy(Map.x, Map.y, STATE_LIVE);
+			}
+			//　仮ブロック
+			else if (MapData[y][x] == 4)
+			{
+				Map.x = x * MAP_SIZE;
+				Map.y = y * MAP_SIZE;
+
+				InitWall(Map.x, Map.y, STATE_NONE);
+			}
+		}
+	}
+
+}
+
+//　当たり判定
+int IsHit(OBJECT objA, OBJECT objB)
+{
+	int x0 = objA.x;
+	int y0 = objA.y;
+	int x1 = objA.x + objA.width - 1;
+	int y1 = objA.y + objA.height - 1;
+
+	int x2 = objB.x;
+	int y2 = objB.y;
+	int x3 = objB.x + objB.width - 1;
+	int y3 = objB.y + objB.height - 1;
+
+	// 二つの矩形が何かしらの形で重なっているか？
+	if (x0 < x3 && x2 < x1 && y0 < y3 && y2 < y1)
+	{
+		// 重なっていた
+		return 1;
+	}
+	
+	// 重なってなかった
+	return 0;
+}
+
+//　重力の当たり判定
+int IsHitGravity(OBJECT objA, OBJECT objB)
+{
+	int x0 = objA.x;
+	int y0 = objA.y;
+	int x1 = objA.x + objA.width - 1;
+	int y1 = objA.y + objA.height + GRAVITY;
+
+	int x2 = objB.x;
+	int y2 = objB.y;
+	int x3 = objB.x + objB.width - 1;
+	int y3 = objB.y + objB.height - 1;
+
+	// 二つの矩形が何かしらの形で重なっているか？
+	if (x0 < x3 && x2 < x1 && y0 < y3 && y2 < y1)
+	{
+		// 重なっていた
+		return 1;
+	}
+
+	// 重なってなかった
+	return 0;
+}
+
+//　弾の生成
+void CreateShot(OBJECT shooter)
+{
+	EnemyShot.state = STATE_LIVE;
+	EnemyShot.x = shooter.x;
+	EnemyShot.y = shooter.y;
+}
+
+//　プレイヤーの操作
+void PlayerControl()
+{
+
+	// キーを押したら右に動く
+	if (CheckHitKey(KEY_INPUT_RIGHT))
+	{
+		PlayerSpeed = 5;
+
+	}
+	//　キーを押したら左に動く
+	else if(CheckHitKey(KEY_INPUT_LEFT))
+	{
+		PlayerSpeed = -5;
+	}
+	//　何も押してなければ不動
+	else
+	{
+		PlayerSpeed = 0;
+	}
+	//　右ダッシュ
+	if (CheckHitKey(KEY_INPUT_LSHIFT ) && CheckHitKey(KEY_INPUT_RIGHT)){
+		PlayerSpeed = 10;
+	}
+	//　左ダッシュ
+	if (CheckHitKey(KEY_INPUT_LSHIFT) && CheckHitKey(KEY_INPUT_LEFT)){
+		PlayerSpeed = -10;
+	}
+
+	Player.x += PlayerSpeed;
+	ScrollX -= PlayerSpeed;			//　スクロール
+
+
+	for (int i = 0; i < index; i++)
+	{
+		if (IsHit(Player, Wall[i]) == 1 && Wall[i].state == STATE_LIVE)
+		{
+			// スピード分押し戻す
+			Player.x -= PlayerSpeed;
+			ScrollX += PlayerSpeed;
+		}
+	}
+	
+
+	//　キーが押されたらジャンプする
+	if (CheckHitKey(KEY_INPUT_SPACE) && isJump== FALSE)
+	{
+		isJump = TRUE;
+		force = 30;
+	}
+
+	//　ジャンプしていたら
+	if (isJump == TRUE)
+	{
+		force -= 1;								//　force = force - 1 
+		Player.y -= force;						//　Player.y = Player.y - force;
+
+		//　ジャンプしてブロックに当たったら
+		for (int i = 0; i < index; i++)
+		{
+			if (IsHit(Player, Wall[i]) == 1 && Wall[i].state == STATE_LIVE)
+			{
+				//　押し戻す
+				Player.y += force;				//　Player.y = Player.y + force
+
+				isJump = FALSE;
+			}
+		}
+	}
+	KEY_Update();
+	//　キー押したら攻撃
+		if (KEY_Z == 1){
+			isAttack = TRUE;
+			if (IsHit(Attack, Enemy)){
+				Enemy.state = STATE_NONE;
+				}
+			}
+
+
+	//　重力
+	Player.y += GravityForce;
+
+
+	for (int i = 0; i < index; i++)
+	{
+		if (IsHitGravity(Player, Wall[i]) != 1)
+		{
+			GravityForce = GRAVITY;
+		}
+	}
+	for (int i = 0; i < index; i++)
+	{
+		if (IsHitGravity(Player, Wall[i]) == 1)
+		{
+			GravityForce = 0;
+		}
+	}
+
+	//　エネミーが存在する
+
+	if (Enemy.state == STATE_LIVE){
+		//　プレイヤーがエネミーに当たったら
+		if (IsHit(Player, Enemy) == 1)
+		{
+			//　プレイヤーが存在しない
+			Player.state = STATE_NONE;
+		}
+	}
+	InitAttack(Player.x, Player.y);
+}
+
+//　エネミーの弾の操作
+void EnemyShotControl()
+{
+	//	弾が無いかプレイヤーにヒットしているなら移動処理はせずに終了
+	if (EnemyShot.state != STATE_LIVE) return;
+
+	//	弾の移動
+	EnemyShot.y += 5;
+
+	//	弾はプレイヤーにヒットしている？
+	if (IsHit(EnemyShot, Player))
+	{
+		//	弾を消す
+		EnemyShot.state = STATE_NONE;
+		//	プレイヤーを死亡状態にする
+		Player.state = STATE_NONE;
+		return;
+	}
+
+	//	弾は画面外に消えた？
+	if (EnemyShot.y > Windows_HEIGHT)
+	{
+		EnemyShot.state = STATE_NONE;
+	}
+
+	return;
+}
+
+//　エネミーの操作
+void EnemyControl()
+{
+
+	for (int i = 0; i < index; i++){
+		if (IsHit(Enemy, Wall[i])){
+			EnemySpeed *= -1;		// EenemySpeed = -EenemySpeed
+
+
+
+		}
+	}
+
+	EnemyShotTime--;
+	if(EnemyShotTime == 0)
+	{
+		//	弾を現在出していないのなら弾を出す
+		if (EnemyShot.state == STATE_NONE)
+		{
+			//	弾を生成
+			CreateShot(Enemy);
+		}
+		//	次に弾をうつ間隔を決める
+		CalcEnemyShotTiming();
+	}
+
+	//　座標
+	//if (Enemy.x <= 5 * MAP_SIZE){
+	//	EnemySpeed *= -1;
+	//}
+
+	//if (Enemy.x >= 9 * MAP_SIZE){
+	//	EnemySpeed *= -1;
+	//}
+	Enemy.x += EnemySpeed;
+
+}
+
+
+
+//　オブジェクトの描画
+void DrawObject(OBJECT target)
+{
+	//	オブジェクトが存在しないときは描画しなくてよい
+	if (target.state == STATE_NONE) return;
+
+	//	オブジェクト描画
+	DrawBox(target.x + ScrollX,			//	X1座標
+		target.y,			//	Y1座標
+		target.x + target.width + ScrollX,	//	X2座標　この引数は幅を指定するのではなく座標をしているので-1している。
+		target.y + target.height,	//	Y2座標　この引数は幅を指定するのではなく座標をしているので-1している。
+		target.color,		//	色
+		TRUE);				//	塗りつぶしモード(TRUEで塗りつぶし、FALSE)
+
+	return;
+}
+
+//　描画
+void Draw()
+{
+	// 画面を初期化する
+	ClearDrawScreen();
+
+	// 描画先画面を裏にする
+	SetDrawScreen(DX_SCREEN_BACK);
+	// プレイヤーの描画
+	DrawObject(Player);
+
+	//　攻撃の描画
+	if (KEY_Z == 1){
+		DrawObject(Attack);
+		//DrawBox(Player.x + ScrollX + MAP_SIZE, Player.y,
+		//	Player.x + Player.width + ScrollX + MAP_SIZE, Player.y + Player.height,
+		//	GetColor(0, 0, 255), TRUE);
+		isAttack = FALSE;
+	}
+	//　エネミーの描画
+	DrawObject(Enemy);
+			DrawObject(EnemyShot);
+			/*DrawBox(EnemyShot.x + ScrollX, EnemyShot.y,
+			EnemyShot.x + EnemyShot.width + ScrollX, EnemyShot.y + EnemyShot.height,
+			GetColor(0, 255, 255), TRUE);*/
+
+
+
+	//　ブロックの描画
+	for (int i = 0; i < index; i++)
+	{
+		if (Wall[i].state == STATE_LIVE){
+			DrawObject(Wall[i]);
+		}
+	}
+		// 裏画面の内容を表画面に映す
+		ScreenFlip();
+}
+
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+	LPSTR lpCmdLine, int nCmdShow)
+{
+	ChangeWindowMode(TRUE);//　ウィンドウモードにする
+	SetGraphMode(Windows_WIDTH, Windows_HEIGHT, 16);
+	if (DxLib_Init() == -1)	// ＤＸライブラリ初期化処理
+	{
+		return -1;		// エラーが起きたら直ちに終了
+	}
+
+	InitMapData();
+
+	while (ProcessMessage() == 0 && CheckHitKey(KEY_INPUT_ESCAPE) == 0 && Player.state != STATE_NONE){
+
+		PlayerControl();
+		EnemyControl();
+		EnemyShotControl();
+		Draw();
+	
+		
+			}
+
+	DxLib_End();		// ＤＸライブラリ使用の終了処理
+
+	return 0;		// ソフトの終了
+}

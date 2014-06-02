@@ -1,0 +1,396 @@
+//　タイトル　切り抜けろ
+#include "DxLib.h"
+
+#define Windows_WIDTH 1280		//　ウィンドウの横サイズ
+#define Windows_HEIGHT 780		//　ウィンドウの縦サイズ
+#define MAP_SIZE 64				//　マップチップ1つのドットサイズ
+#define MAP_WIDTH 40			//　マップの幅
+#define MAP_HEIGHT 16			//　マップの縦長さ
+#define STATE_LIVE 1			//　オブジェクトが存在
+#define STATE_NONE 0			//　オブジェクトが存在していない
+
+// プレイヤーの位置
+int PlayerX, PlayerY;
+int JumpPower;
+
+int Enemy_state;
+
+int EnemyX, EnemyY;
+
+
+
+//　当たり判定
+bool isHit(int Ax, int Ay, int Awidth, int Aheight,
+	int Bx, int By, int Bwidth, int Bheight) {
+
+	return (Ax<Bx + Bwidth) &&
+		(Ay<By + Bheight) &&
+		(Bx<Ax + Awidth) &&
+		(By<Ay + Aheight);
+
+}
+
+
+// マップのデータ
+int MapData[MAP_HEIGHT][MAP_WIDTH] =
+{
+	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 },
+	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+
+};
+
+struct OBJECT
+{
+	int x, y;
+	int width, height;
+
+};
+
+OBJECT Wall[25];
+OBJECT Map;
+OBJECT _Player;
+OBJECT _Enemy;
+
+
+int index = 0;
+
+void InitPlayer(int &x, int &y)
+{
+	_Player.x = x;
+	_Player.y = y;
+
+	_Player.width = MAP_SIZE;
+	_Player.height = MAP_SIZE;
+
+
+
+}
+void InitWall(int &x, int &y)
+{
+	Wall[index].x = x;
+	Wall[index].y = y;
+	Wall[index].width = MAP_SIZE;
+	Wall[index].height = MAP_SIZE;
+	index++;
+}
+
+void InitMapData()
+{
+	for (int y = 0; y < MAP_HEIGHT; y++)
+	{
+		for (int x = 0; x < MAP_WIDTH; x++)
+		{
+			if (MapData[y][x] == 1)
+			{
+				Map.x = x * MAP_SIZE;
+				Map.y = y * MAP_SIZE;
+
+				InitWall(Map.x, Map.y);
+			}
+			//else if (MapData[y][x] == 2)
+			//{
+			//	Map.x = x * MAP_SIZE;
+			//	Map.y = y * MAP_SIZE;
+
+			//	InitPlayer(Map.x, Map.y);
+			//}
+		}
+	}
+
+
+}
+int IsHit(OBJECT objA, OBJECT objB)
+{
+	int x0 = objA.x;
+	int y0 = objA.y;
+	int x1 = objA.x + objA.width - 1;
+	int y1 = objA.y + objA.height - 1;
+
+	int x2 = objB.x;
+	int y2 = objB.y;
+	int x3 = objB.x + objB.width - 1;
+	int y3 = objB.y + objB.height - 1;
+
+	// 二つの矩形が何かしらの形で重なっているか？
+	if (x0 < x3 && x2 < x1 && y0 < y3 && y2 < y1)
+	{
+		// 重なっていた
+		return 1;
+	}
+
+	// 重なってなかった
+	return 0;
+}
+//int speed = 0;
+//
+//void Control()
+//{
+//	if (CheckHitKey(KEY_INPUT_RIGHT) == 1)
+//	{
+//		speed = 5;
+//	}
+//	else
+//	{
+//		speed = 0;
+//	}
+//
+//	_Player.x += speed;
+//
+//	for (int i = 0; i < index; i++)
+//	{
+//		if (IsHit(_Player, Wall[i]) == 1)
+//		{
+//			// スピード分押し戻す
+//			_Player.x -= speed;
+//		}
+//	}
+//
+//}
+
+
+//　1フレームだけ攻撃
+int KEY_Z;
+void KEY_UPDATE()
+{
+
+	if (CheckHitKey(KEY_INPUT_Z)){
+		KEY_Z++;
+	}
+	else{
+		KEY_Z = 0;
+	}
+}
+
+
+// マップとプレイヤーの描画関数
+void GraphDraw(void)
+{
+	int MapDrawPointX, MapDrawPointY;		// 描画するマップ座標値
+	int DrawMapChipNumX, DrawMapChipNumY;
+	int i, j;
+
+
+	DrawMapChipNumX = Windows_WIDTH / MAP_SIZE + 1;
+	DrawMapChipNumY = Windows_HEIGHT / MAP_SIZE + 1;
+	// 画面左上に描画するマップ座標をセット
+	MapDrawPointX = PlayerX - DrawMapChipNumX / 2;
+	MapDrawPointY = PlayerY - DrawMapChipNumY / 2;
+
+
+	// マップを描く
+
+	for (i = 0; i < DrawMapChipNumY; i++)
+	{
+		for (j = 0; j < DrawMapChipNumX; j++)
+		{
+			// 画面からはみ出た位置なら描画しない
+			if (j + MapDrawPointX < 0 || i + MapDrawPointY < 0 ||
+				j + MapDrawPointX >= MAP_WIDTH || i + MapDrawPointY >= MAP_HEIGHT) continue;
+
+			// マップデータが０だったら四角を描画する
+			if (MapData[i + MapDrawPointY][j + MapDrawPointX] == 0)
+			{
+				DrawBox(j * MAP_SIZE, i * MAP_SIZE,
+					j * MAP_SIZE + MAP_SIZE, i * MAP_SIZE + MAP_SIZE,
+					GetColor(255, 0, 0), TRUE);
+			}
+		}
+	}
+
+	// プレイヤーの描画
+	DrawBox((PlayerX - MapDrawPointX) * MAP_SIZE, (PlayerY - MapDrawPointY) * MAP_SIZE,
+		(PlayerX - MapDrawPointX + 1) * MAP_SIZE, (PlayerY - MapDrawPointY + 1) * MAP_SIZE,
+		GetColor(255, 255, 255), TRUE);
+
+
+	//　攻撃の描画
+	if (KEY_Z == 1){
+
+		DrawBox((PlayerX - MapDrawPointX) * MAP_SIZE + 64, (PlayerY - MapDrawPointY) * MAP_SIZE,
+			(PlayerX - MapDrawPointX + 1) * MAP_SIZE + 64, (PlayerY - MapDrawPointY + 1) * MAP_SIZE,
+			GetColor(0, 0, 255), TRUE);
+
+	}
+
+}
+
+void EnemyGraph(int Enemy_state){
+	int MapDrawPointX, MapDrawPointY;		// 描画するマップ座標値
+	int DrawMapChipNumX, DrawMapChipNumY;
+
+	// 描画するマップチップの数をセット
+	DrawMapChipNumX = Windows_WIDTH / MAP_SIZE + 1;
+	DrawMapChipNumY = Windows_HEIGHT / MAP_SIZE + 1;
+
+	// 画面左上に描画するマップ座標をセット
+	MapDrawPointX = PlayerX - DrawMapChipNumX / 2;
+	MapDrawPointY = PlayerY - DrawMapChipNumY / 2;
+
+
+	if (Enemy_state == STATE_NONE) return;
+
+	DrawBox((EnemyX - MapDrawPointX) * MAP_SIZE, (EnemyY - MapDrawPointY) * MAP_SIZE,
+		(EnemyX - MapDrawPointX + 1) * MAP_SIZE, (EnemyY - MapDrawPointY + 1) * MAP_SIZE,
+		GetColor(0, 255, 0), TRUE);
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+	LPSTR lpCmdLine, int nCmdShow)
+{
+	int Key;
+	int OldX, OldY;		// 移動する前のプレイヤーの位置を保存する変数
+
+	ChangeWindowMode(TRUE);
+	SetGraphMode(Windows_WIDTH, Windows_HEIGHT, 16);
+	if (DxLib_Init() == -1)	// ＤＸライブラリ初期化処理
+	{
+		return -1;		// エラーが起きたら直ちに終了
+	}
+
+	// 描画先画面を裏画面にする
+	SetDrawScreen(DX_SCREEN_BACK);
+
+	// プレイヤーの初期位置をセット
+	PlayerX = 2;
+	PlayerY = 14;
+	JumpPower = 0;
+
+	//　エネミーの初期位置をセット
+	EnemyX = 17;
+	EnemyY = 14;
+	Enemy_state = STATE_LIVE;
+
+	int EnemyDir = -1;
+
+	// ループ
+	while (ProcessMessage() == 0 && CheckHitKey(KEY_INPUT_ESCAPE) == 0)
+	{
+
+		// キー入力を得る
+		Key = GetJoypadInputState(DX_INPUT_KEY_PAD1);
+
+		// 移動する前のプレイヤーの位置を保存
+		OldX = PlayerX;
+		OldY = PlayerY;
+
+		// キー入力に応じてプレイヤーの座標を移動
+		if (CheckHitKey(KEY_INPUT_LEFT)) PlayerX -= 1;
+		if (CheckHitKey(KEY_INPUT_RIGHT)) PlayerX += 1;
+		//if (Key & PAD_INPUT_UP) PlayerY -= 1;
+		if (CheckHitKey(KEY_INPUT_DOWN)) PlayerY += 1;
+
+		//// 移動量に基づいてキャラクタの座標を移動
+		//CharMove(&PlayerX, &PlayerY, &JumpPower, OldX, OldY, MAP_SIZE);
+
+
+		if (EnemyX == 18){
+			EnemyDir = -1;
+		}
+		if (EnemyX == 14){
+			EnemyDir = 1;
+		}
+		EnemyX += EnemyDir * 1;
+
+		// 落下処理
+		PlayerY -= JumpPower;
+
+		// 落下加速度を加える
+		JumpPower -= 1;
+
+		// もし地面についていたら止まる
+		if (PlayerY > 14)
+		{
+			PlayerY = 14;
+			JumpPower = 0;
+		}
+
+		// ジャンプボタンを押していて、地面についていたらジャンプ
+		if ((CheckHitKey(KEY_INPUT_SPACE)) && PlayerY == 14)
+		{
+			JumpPower = 3;
+		}
+
+
+
+
+
+
+		////　ゴールについたらゲーム終了
+		//if ((PlayerX == 20) && (PlayerY == 14))
+		//{
+		//	return -1;
+		//}
+
+		//　敵が生きてたら当たり判定あり
+		if (Enemy_state == STATE_LIVE){
+
+			//　敵に当たったら終了
+
+			if (isHit(PlayerX, PlayerY, 1, 1, EnemyX, EnemyY, 1, 1)){
+				return -1;
+			}
+		}
+
+
+		//if (JumpPower == 3 || JumpPower == 0){
+		//	if (MapData[MAP_HEIGHT][MAP_WIDTH] == 0){
+		//	}
+		//}
+
+		KEY_UPDATE();
+
+		//　Zで攻撃してエネミーに当たったら描画が消える
+
+		if (KEY_Z == 1){
+
+
+			if (isHit(PlayerX + 1, PlayerY, 1, 1, EnemyX, EnemyY, 1, 1)){
+				Enemy_state = STATE_NONE;
+
+			}
+
+		}
+
+
+		// 進入不可能なマップだった場合は移動できない
+		if (MapData[PlayerY][PlayerX] == 0)
+		{
+			PlayerX = OldX;
+			PlayerY = OldY;
+		}
+
+
+		// 画面を初期化する
+		ClearDrawScreen();
+
+		//InitMapData();
+
+		// マップとプレイヤーを描画
+		GraphDraw();
+		EnemyGraph(Enemy_state);
+
+		// 裏画面の内容を表画面に映す
+		ScreenFlip();
+
+		// ウエイト
+		WaitTimer(100);
+	}
+
+	DxLib_End();		// ＤＸライブラリ使用の終了処理
+
+	return 0;		// ソフトの終了
+}
